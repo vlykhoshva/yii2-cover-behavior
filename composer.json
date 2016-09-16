@@ -1,0 +1,22 @@
+{
+    "name": "lyhoshva/yii2-cover-behavior",
+    "description": "Yii 2 behavior for image uploading",
+    "type": "library",
+    "require": {
+        "yiisoft/yii2": "^2.0",
+        "php": ">=5.4"
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Lyhoshva Vlad",
+            "email": "lyhoshvavlad@gmail.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-4": {
+            "lyhoshva\\yii2-cover-behavior\\": "."
+        }
+    }
+}
