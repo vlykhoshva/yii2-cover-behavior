@@ -1,19 +1,19 @@
 <?php
 /**
  * Created by PhpStorm.
- * User: vlad
+ * User: lyhoshva
  * Date: 13.09.16
  * Time: 12:17
  */
 
-namespace Yii2CoverBehavior;
+namespace lyhoshva\Cover;
 
 use Yii;
 use yii\base\Behavior;
 use yii\db\ActiveRecord;
 use yii\web\UploadedFile;
 
-class ImageBehavior extends Behavior
+class CoverBehavior extends Behavior
 {
     public $image = null;
     public $modelAttribute = 'image';

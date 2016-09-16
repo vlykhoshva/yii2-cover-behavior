@@ -1,7 +1,8 @@
 {
     "name": "lyhoshva/yii2-cover-behavior",
     "description": "Yii 2 behavior for image uploading",
-    "type": "library",
+    "type": "yii2-extension",
+    "keywords": ["yii2", "extension", "yii2-cover-behavior", "behavior", "image", "uploading"],
     "require": {
         "yiisoft/yii2": "^2.0",
         "php": ">=5.4"
@@ -16,7 +17,7 @@
     "minimum-stability": "dev",
     "autoload": {
         "psr-4": {
-            "lyhoshva\\yii2-cover-behavior\\": "."
+            "lyhoshva\\Cover\\": "src"
         }
     }
 }
