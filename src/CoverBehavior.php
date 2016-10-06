@@ -8,16 +8,24 @@
 
 namespace lyhoshva\Cover;
 
+use Imagine\Gd\Imagine;
+use Imagine\Image\Box;
+use Imagine\Image\ManipulatorInterface;
 use Yii;
 use yii\base\Behavior;
+use yii\base\InvalidParamException;
 use yii\db\ActiveRecord;
 use yii\web\UploadedFile;
 
 class CoverBehavior extends Behavior
 {
+    const THUMBNAIL_INSET = ManipulatorInterface::THUMBNAIL_INSET;
+    const THUMBNAIL_OUTBOUND = ManipulatorInterface::THUMBNAIL_OUTBOUND;
+
     public $image = null;
     public $modelAttribute = 'image';
     public $tableAttribute = 'image';
+    public $thumbnails = array();
     public $path;
 
     public function init()
@@ -26,6 +34,22 @@ class CoverBehavior extends Behavior
 
         if (empty($this->path)) {
             $this->path = Yii::getAlias('@frontend/web/uploads');
+        }
+        if (!empty($this->thumbnails)) {
+            foreach ($this->thumbnails as &$thumbnail) {
+                if (empty($thumbnail['prefix']) || empty($thumbnail['width'])) {
+                    throw new InvalidParamException('$thumbnails[\'prefix\'] and $thumbnails[\'width\'] can not be empty');
+                }
+                if (empty($thumbnail['height'])) {
+                    $thumbnail['height'] = $thumbnail['width'];
+                }
+                if (empty($thumbnail['mode'])) {
+                    $thumbnail['mode'] = ManipulatorInterface::THUMBNAIL_INSET;
+                } elseif (!in_array($thumbnail['mode'],
+                    [ManipulatorInterface::THUMBNAIL_INSET, ManipulatorInterface::THUMBNAIL_OUTBOUND])) {
+                    throw new InvalidParamException('Undefined mode in $thumbnail[\'mode\']');
+                }
+            }
         }
     }
 
@@ -60,16 +84,20 @@ class CoverBehavior extends Behavior
         if ($this->image) {
 
             if ($owner->$table_attribute) {
-                $file = $this->path . $owner->$table_attribute;
-
-                if (file_exists($file)) {
-                    unlink($file);
-                }
+                $this->deleteImage();
             }
 
             $owner->$table_attribute = uniqid() . '.' . $this->image->extension;
             $this->image->saveAs($this->path . $owner->$table_attribute);
 
+            if (!empty($this->thumbnails)) {
+                $imagine = new Imagine();
+                foreach ($this->thumbnails as $thumbnail) {
+                    $imagine->open($this->path . $owner->$table_attribute)
+                        ->thumbnail(new Box($thumbnail['width'], $thumbnail['height']), $thumbnail['mode'])
+                        ->save($this->path . $thumbnail['prefix'] . $owner->$table_attribute);
+                }
+            }
             $this->image = '';
         }
 
@@ -80,6 +108,15 @@ class CoverBehavior extends Behavior
     {
         $table_attribute = $this->tableAttribute;
         $file_path = $this->path . $this->owner->$table_attribute;
-        unlink($file_path);
+        if (file_exists($file_path)) {
+            unlink($file_path);
+        }
+
+        foreach ($this->thumbnails as $thumbnail) {
+            $file_path = $this->path . $thumbnail['prefix'] . $this->owner->$table_attribute;
+            if (file_exists($file_path)) {
+                unlink($file_path);
+            }
+        }
     }
 }
