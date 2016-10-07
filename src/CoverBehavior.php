@@ -40,11 +40,14 @@ class CoverBehavior extends Behavior
                 if (empty($thumbnail['prefix'])) {
                     throw new InvalidParamException('$thumbnails[\'prefix\'] can not be empty');
                 }
-                if (empty($thumbnail['width']) && empty($thumbnail['height'])) {
-                    throw new InvalidParamException('$thumbnails[\'width\'] or $thumbnails[\'height\'] have to be not empty');
+                if (empty($thumbnail['width'])) {
+                    throw new InvalidParamException('$thumbnails[\'width\'] have to be not empty');
                 }
                 if (empty($thumbnail['height'])) {
                     $thumbnail['height'] = $thumbnail['width'];
+                }
+                if (!is_numeric($thumbnail['width']) || !is_numeric($thumbnail['height'])) {
+                    throw new InvalidParamException('$thumbnails[\'width\'] and $thumbnails[\'height\'] have to be a number');
                 }
                 if (empty($thumbnail['mode'])) {
                     $thumbnail['mode'] = ManipulatorInterface::THUMBNAIL_INSET;
