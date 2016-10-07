@@ -40,7 +40,7 @@ class CoverBehavior extends Behavior
                 if (empty($thumbnail['prefix'])) {
                     throw new InvalidParamException('$thumbnails[\'prefix\'] can not be empty');
                 }
-                if (empty($thumbnail['width']) || empty($thumbnail['height'])) {
+                if (empty($thumbnail['width']) && empty($thumbnail['height'])) {
                     throw new InvalidParamException('$thumbnails[\'width\'] or $thumbnails[\'height\'] have to be not empty');
                 }
                 if (empty($thumbnail['height'])) {
