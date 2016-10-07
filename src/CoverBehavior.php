@@ -37,8 +37,11 @@ class CoverBehavior extends Behavior
         }
         if (!empty($this->thumbnails)) {
             foreach ($this->thumbnails as &$thumbnail) {
-                if (empty($thumbnail['prefix']) || empty($thumbnail['width'])) {
-                    throw new InvalidParamException('$thumbnails[\'prefix\'] and $thumbnails[\'width\'] can not be empty');
+                if (empty($thumbnail['prefix'])) {
+                    throw new InvalidParamException('$thumbnails[\'prefix\'] can not be empty');
+                }
+                if (empty($thumbnail['width']) || empty($thumbnail['height'])) {
+                    throw new InvalidParamException('$thumbnails[\'width\'] or $thumbnails[\'height\'] have to be ');
                 }
                 if (empty($thumbnail['height'])) {
                     $thumbnail['height'] = $thumbnail['width'];
