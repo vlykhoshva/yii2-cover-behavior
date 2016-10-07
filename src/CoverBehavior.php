@@ -98,9 +98,9 @@ class CoverBehavior extends Behavior
 
             if (!empty($this->thumbnails)) {
                 $imagine = new Imagine();
+                $imagine = $imagine->open($this->path . $owner->$table_attribute);
                 foreach ($this->thumbnails as $thumbnail) {
-                    $imagine->open($this->path . $owner->$table_attribute)
-                        ->thumbnail(new Box($thumbnail['width'], $thumbnail['height']), $thumbnail['mode'])
+                    $imagine->thumbnail(new Box($thumbnail['width'], $thumbnail['height']), $thumbnail['mode'])
                         ->save($this->path . $thumbnail['prefix'] . $owner->$table_attribute);
                 }
             }
