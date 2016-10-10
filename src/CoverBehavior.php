@@ -74,7 +74,7 @@ class CoverBehavior extends Behavior
     {
         $owner = $this->owner;
         $table_attribute = $this->tableAttribute;
-        $this->image = '/' . $this->path . $owner->$table_attribute;
+        $this->image = !empty($owner->$table_attribute) ? '/' . $this->path . $owner->$table_attribute : null;
     }
 
     public function loadImage()
