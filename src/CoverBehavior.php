@@ -16,17 +16,19 @@ use yii\base\Behavior;
 use yii\base\InvalidParamException;
 use yii\db\ActiveRecord;
 use yii\web\UploadedFile;
+use yii\base\UnknownPropertyException;
 
 class CoverBehavior extends Behavior
 {
     const THUMBNAIL_INSET = ManipulatorInterface::THUMBNAIL_INSET;
     const THUMBNAIL_OUTBOUND = ManipulatorInterface::THUMBNAIL_OUTBOUND;
 
-    public $image = null;
-    public $modelAttribute = 'image';
-    public $tableAttribute = 'image';
+    public $modelAttribute;
+    public $relationReferenceAttribute = 'image';
     public $thumbnails = array();
     public $path;
+
+    private $_relationReferenceAttributeValue;
 
     public function init()
     {
@@ -59,6 +61,60 @@ class CoverBehavior extends Behavior
         }
     }
 
+    /**
+     * PHP getter magic method.
+     * This method is overridden so that relation attribute can be accessed like property.
+     *
+     * @param string $name property name
+     * @throws UnknownPropertyException if the property is not defined
+     * @return mixed property value
+     */
+    public function __get($name)
+    {
+        try {
+            return parent::__get($name);
+        } catch (UnknownPropertyException $exception) {
+            if ($name === $this->relationReferenceAttribute) {
+                if (is_null($this->_relationReferenceAttributeValue)) {
+                    $this->_relationReferenceAttributeValue = $this->owner->{$this->modelAttribute};
+                }
+                return $this->_relationReferenceAttributeValue;
+            }
+            throw $exception;
+        }
+    }
+
+    /**
+     * PHP setter magic method.
+     * This method is overridden so that relation attribute can be accessed like property.
+     * @param string $name property name
+     * @param mixed $value property value
+     * @throws UnknownPropertyException if the property is not defined
+     */
+    public function __set($name, $value)
+    {
+        try {
+            parent::__set($name, $value);
+        } catch (UnknownPropertyException $exception) {
+            if ($name === $this->relationReferenceAttribute) {
+                $this->_relationReferenceAttributeValue = $value;
+            } else {
+                throw $exception;
+            }
+        }
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function canGetProperty($name, $checkVars = true)
+    {
+        if (parent::canGetProperty($name, $checkVars)) {
+            return true;
+        }
+        return ($name === $this->relationReferenceAttribute);
+    }
+
     public function events()
     {
         return [
@@ -66,35 +122,27 @@ class CoverBehavior extends Behavior
             ActiveRecord::EVENT_BEFORE_INSERT => 'saveImage',
             ActiveRecord::EVENT_BEFORE_UPDATE => 'saveImage',
             ActiveRecord::EVENT_AFTER_DELETE => 'deleteImage',
-            ActiveRecord::EVENT_AFTER_FIND => 'setImagePath',
         ];
-    }
-
-    public function setImagePath()
-    {
-        $owner = $this->owner;
-        $table_attribute = $this->tableAttribute;
-        $this->image = !empty($owner->$table_attribute) ? '/' . $this->path . $owner->$table_attribute : null;
     }
 
     public function loadImage()
     {
-        $this->image = UploadedFile::getInstance($this->owner, 'image');
+        $this->_relationReferenceAttributeValue = UploadedFile::getInstance($this->owner, $this->relationReferenceAttribute);
         return true;
     }
 
     public function saveImage()
     {
         $owner = $this->owner;
-        $table_attribute = $this->tableAttribute;
-        if ($this->image) {
+        $table_attribute = $this->modelAttribute;
+        if ($this->_relationReferenceAttributeValue) {
 
             if ($owner->$table_attribute) {
                 $this->deleteImage();
             }
 
-            $owner->$table_attribute = uniqid() . '.' . $this->image->extension;
-            $this->image->saveAs($this->path . $owner->$table_attribute);
+            $owner->$table_attribute = uniqid() . '.' . $this->_relationReferenceAttributeValue->extension;
+            $this->_relationReferenceAttributeValue->saveAs($this->path . $owner->$table_attribute);
 
             if (!empty($this->thumbnails)) {
                 $imagine = new Imagine();
@@ -104,7 +152,7 @@ class CoverBehavior extends Behavior
                         ->save($this->path . $thumbnail['prefix'] . $owner->$table_attribute);
                 }
             }
-            $this->image = '';
+            $this->_relationReferenceAttributeValue = '';
         }
 
         return true;
@@ -112,7 +160,7 @@ class CoverBehavior extends Behavior
 
     public function deleteImage()
     {
-        $table_attribute = $this->tableAttribute;
+        $table_attribute = $this->modelAttribute;
         $file_path = $this->path . $this->owner->$table_attribute;
         if (file_exists($file_path)) {
             unlink($file_path);
