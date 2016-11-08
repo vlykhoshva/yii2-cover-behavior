@@ -14,9 +14,9 @@ use Imagine\Image\ManipulatorInterface;
 use Yii;
 use yii\base\Behavior;
 use yii\base\InvalidParamException;
+use yii\base\UnknownPropertyException;
 use yii\db\ActiveRecord;
 use yii\web\UploadedFile;
-use yii\base\UnknownPropertyException;
 
 class CoverBehavior extends Behavior
 {
@@ -146,7 +146,7 @@ class CoverBehavior extends Behavior
     {
         $owner = $this->owner;
         $table_attribute = $this->modelAttribute;
-        if ($this->_relationReferenceAttributeValue) {
+        if ($this->_relationReferenceAttributeValue instanceof UploadedFile) {
 
             if ($owner->$table_attribute) {
                 $this->deleteImage();
