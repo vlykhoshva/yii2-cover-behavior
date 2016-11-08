@@ -115,6 +115,17 @@ class CoverBehavior extends Behavior
         return ($name === $this->relationReferenceAttribute);
     }
 
+    /**
+     * @inheritdoc
+     */
+    public function canSetProperty($name, $checkVars = true)
+    {
+        if (parent::canSetProperty($name, $checkVars)) {
+            return true;
+        }
+        return ($name === $this->relationReferenceAttribute);
+    }
+
     public function events()
     {
         return [
