@@ -15,7 +15,7 @@ composer require --prefer-dist lyhoshva/yii2-cover-behavior
 or add
 
 ```json
-"yii2tech/ar-linkmany": "*"
+"lyhoshva/yii2-cover-behavior": "*"
 ```
 
 to the require section of your composer.json.
