@@ -172,15 +172,16 @@ class CoverBehavior extends Behavior
     public function deleteImage()
     {
         $table_attribute = $this->modelAttribute;
-        $file_path = $this->path . $this->owner->$table_attribute;
-        if (file_exists($file_path)) {
+        $file_name = $this->owner->$table_attribute;
+        $file_path = $this->path . $file_name;
+        if ((!empty($file_name)) && (file_exists($file_path))) {
             unlink($file_path);
-        }
 
-        foreach ($this->thumbnails as $thumbnail) {
-            $file_path = $this->path . $thumbnail['prefix'] . $this->owner->$table_attribute;
-            if (file_exists($file_path)) {
-                unlink($file_path);
+            foreach ($this->thumbnails as $thumbnail) {
+                $file_path = $this->path . $thumbnail['prefix'] . $this->owner->$table_attribute;
+                if (file_exists($file_path)) {
+                    unlink($file_path);
+                }
             }
         }
     }
