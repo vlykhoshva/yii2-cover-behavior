@@ -11,6 +11,7 @@ namespace lyhoshva\Cover;
 use Imagine\Gd\Imagine;
 use Imagine\Image\Box;
 use Imagine\Image\ManipulatorInterface;
+use Imagine\Image\Point;
 use Yii;
 use yii\base\Behavior;
 use yii\base\InvalidParamException;
@@ -27,6 +28,7 @@ class CoverBehavior extends Behavior
     public $relationReferenceAttribute = 'image';
     public $thumbnails = array();
     public $path;
+    public $watermark = null;
 
     private $_relationReferenceAttributeValue;
 
@@ -155,6 +157,10 @@ class CoverBehavior extends Behavior
             $owner->$table_attribute = uniqid() . '.' . $this->_relationReferenceAttributeValue->extension;
             $this->_relationReferenceAttributeValue->saveAs($this->path . $owner->$table_attribute);
 
+            if (!empty($this->watermark)) {
+                $this->addWatermark($this->path . $owner->$table_attribute);
+            }
+
             if (!empty($this->thumbnails)) {
                 $imagine = new Imagine();
                 $imagine = $imagine->open($this->path . $owner->$table_attribute);
@@ -167,6 +173,17 @@ class CoverBehavior extends Behavior
         }
 
         return true;
+    }
+
+    private function addWatermark($path)
+    {
+        $imagine = new Imagine();
+        $watermark = $imagine->open($this->watermark);
+        $image = $imagine->open($path);
+        $image_size = $image->getSize();
+        $watermark = $watermark->crop(new Point(0, 0), new Box($image_size->getWidth(), $image_size->getHeight()));
+        $image = $image->paste($watermark, new Point(0, 0));
+        $image->save();
     }
 
     public function deleteImage()
