@@ -26,8 +26,9 @@ use yii\web\UploadedFile;
 /**
  *
  * @property string $fileName generated filename
- * @property string $fullFileName
+ * @property string $modelFullFileName
  * @property string $filePath
+ * @property string $fileExtension
  */
 class CoverBehavior extends Behavior
 {
@@ -49,7 +50,7 @@ class CoverBehavior extends Behavior
     public $thumbnails = array();
 
     /**
-     * @var  string|callable path to store file. Default value use `'@frontend/web/uploads'`.
+     * @var string|callable path to store file. Default value use `'@frontend/web/uploads'`.
      * Callback function should has next template:
      * function($ownerActiveRecord) {
      *      return [string];
@@ -60,11 +61,11 @@ class CoverBehavior extends Behavior
     /** @var string path to watermark image file. Default NULL */
     public $watermark = null;
 
-    /** @var  callable Callback function to generate file name */
+    /** @var callable Callback function to generate file name */
     public $fileNameGenerator;
 
-    private $_relationAttributeValue;
-    private $_fileName;
+    private $_relationAttributeValue, $_fileName, $_filePath;
+    private $fileNameRegexp = '/[a-zA-Z0-9\-_]*\.\w{3,4}$/i';
 
     /** @inheritdoc */
     public function init()
@@ -183,61 +184,61 @@ class CoverBehavior extends Behavior
         $owner = $this->owner;
         $table_attribute = $this->modelAttribute;
         if ($this->_relationAttributeValue instanceof UploadedFile) {
-            if (!empty($owner->$table_attribute)) {
-                $this->deleteImage();
+            $isSaved = FileHelper::createDirectory($this->filePath);
+            $isSaved = $isSaved && $this->_relationAttributeValue->saveAs(
+                    $this->filePath . $this->fileName . '.' . $this->fileExtension);
+
+            if (!$isSaved) {
+                throw new Exception($this->_relationAttributeValue->name . ' not saved.');
             }
-            $owner->$table_attribute = $this->fileName . '.' . $this->_relationAttributeValue->extension;
-            $isSaved = $this->_relationAttributeValue->saveAs($this->path . $owner->$table_attribute);
+
+            $this->setModelFullFileName($this->filePath, $this->fileName . '.' . $this->fileExtension);
+            $this->_relationAttributeValue = null;
 
             $this->addWatermark($owner->$table_attribute);
             $this->generateThumbnail($owner->$table_attribute);
-
-            if ($isSaved) {
-                unlink($this->_relationAttributeValue);
-            } else {
-                throw new Exception($this->_relationAttributeValue->name . ' not saved.');
-            }
         }
         return true;
     }
 
     public function updatePathAndSaveImage()
     {
-        if ($this->_relationAttributeValue instanceof UploadedFile) {
-            $extension = $this->_relationAttributeValue->extension;
-        } else {
-            $extension = substr($this->owner->{$this->modelAttribute},
-                strrpos($this->owner->{$this->modelAttribute}, '.', -1));
+        if (!empty($this->_relationAttributeValue) && $this->_relationAttributeValue instanceof UploadedFile) {
+            $this->deleteImage();
+            return $this->saveImage();
         }
 
-        $actualFullFileName = $this->filePath . $this->fileName . $extension;
-
-        if (is_callable($this->path) && $actualFullFileName !== $this->fullFileName) {
+        $old = $this->modelFullFileName;
+        $newFullFileName = $this->filePath . $this->fileName . '.' . $this->fileExtension;
+        if (is_callable($this->path) && $old !== $newFullFileName) {
             if ($this->modelAttributeFilePath) {
                 $oldFilePath = $this->owner->{$this->modelAttributeFilePath};
             } else {
-                $oldFilePath = preg_replace('/[a-zA-Z0-9\-_]*\.\w{3,4}$/i', '', $this->owner->{$this->modelAttribute});
+                $oldFilePath = preg_replace($this->fileNameRegexp, '', $this->owner->{$this->modelAttribute});
             }
-            FileHelper::createDirectory($this->filePath);
+            $isMoved = FileHelper::createDirectory($this->filePath);
 
-            $isMoved = rename($this->fullFileName, $actualFullFileName);
-
-            if ($isMoved && self::isDirectoryEmpty($oldFilePath)) {
+            if ($isMoved = $isMoved && rename($old, $newFullFileName)) {
+                $this->setModelFullFileName($this->filePath, $this->fileName . '.' . $this->fileExtension);
+            }
+            if (self::isDirectoryEmpty($oldFilePath)) {
                 FileHelper::removeDirectory($oldFilePath);
             };
-            if ($isMoved) {
-                $this->setFullFileName($this->filePath, $this->fileName . $extension);
-            }
+            return $isMoved;
         }
-        return $this->saveImage();
+        return true;
     }
 
-    public function deleteImage()
+    public function deleteImage() // TODO check
     {
-        $file_name = $this->owner->{$this->modelAttribute};
-        $file_path = $this->filePath . $file_name;
-        if ((!empty($file_name)) && (file_exists($file_path))) {
-            unlink($file_path);
+        if (!empty($this->modelAttributeFilePath)) {
+            $file_name = $this->owner->{$this->modelAttribute};
+        } elseif (!empty($this->owner->{$this->modelAttribute})) {
+            preg_match($this->fileNameRegexp, $this->owner->{$this->modelAttribute}, $file_name);
+            $file_name = $file_name[0];
+        }
+        if (file_exists($this->modelFullFileName)) {
+            unlink($this->modelFullFileName);
             $this->deleteThumbnails($file_name);
         }
     }
@@ -281,20 +282,15 @@ class CoverBehavior extends Behavior
     {
         if (!empty($this->thumbnails)) {
             $imagine = new Imagine();
-            $imagine = $imagine->open($this->path . $fileName);
+            $imagine = $imagine->open($this->filePath . $fileName);
             foreach ($this->thumbnails as $thumbnail) {
                 $imagine->thumbnail(new Box($thumbnail['width'], $thumbnail['height']), $thumbnail['mode'])
-                    ->save($this->path . $thumbnail['prefix'] . $fileName);
+                    ->save($this->filePath . $thumbnail['prefix'] . $fileName);
             }
         }
     }
 
-    protected function getFilePath()
-    {
-        return $this->getParamValue($this->path);
-    }
-
-    protected function getFullFileName()
+    protected function getModelFullFileName()
     {
         if (empty($this->modelAttributeFilePath)) {
             return $this->owner->{$this->modelAttribute};
@@ -303,7 +299,7 @@ class CoverBehavior extends Behavior
         }
     }
 
-    protected function setFullFileName($filePath, $fileName)
+    protected function setModelFullFileName($filePath, $fileName)
     {
         if ($this->modelAttributeFilePath) {
             $this->owner->{$this->modelAttributeFilePath} = $filePath;
@@ -311,6 +307,25 @@ class CoverBehavior extends Behavior
         } else {
             $this->owner->{$this->modelAttribute} = $filePath . $fileName;
         }
+    }
+
+    protected function getFileExtension()
+    {
+        if ($this->_relationAttributeValue instanceof UploadedFile) {
+            return $this->_relationAttributeValue->extension;
+        } elseif (!empty($this->owner->{$this->modelAttribute})) {
+            $modelFile = $this->owner->{$this->modelAttribute};
+            return substr($modelFile, 1 + strrpos($modelFile, '.', -1));
+        }
+        throw new Exception("$this->relationAttribute and \"$this->modelAttribute\" hasn't uploaded files.");
+    }
+
+    protected function getFilePath()
+    {
+        if (empty($this->_filePath)) {
+            $this->_filePath = $this->getParamValue($this->path);
+        }
+        return $this->_filePath;
     }
 
     protected function getFileName()
@@ -340,7 +355,7 @@ class CoverBehavior extends Behavior
         return $paramValue;
     }
 
-    private static function isDirectoryEmpty($dir)
+    protected static function isDirectoryEmpty($dir)
     {
         if (!is_readable($dir)) return null;
         $handle = opendir($dir);
