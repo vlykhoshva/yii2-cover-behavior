@@ -19,12 +19,14 @@ use yii\base\InvalidConfigException;
 use yii\base\InvalidParamException;
 use yii\base\UnknownPropertyException;
 use yii\db\ActiveRecord;
+use yii\helpers\FileHelper;
 use yii\helpers\VarDumper;
 use yii\web\UploadedFile;
 
 /**
  *
  * @property string $fileName generated filename
+ * @property string $fullFileName
  * @property string $filePath
  */
 class CoverBehavior extends Behavior
@@ -32,8 +34,13 @@ class CoverBehavior extends Behavior
     const THUMBNAIL_INSET = ManipulatorInterface::THUMBNAIL_INSET;
     const THUMBNAIL_OUTBOUND = ManipulatorInterface::THUMBNAIL_OUTBOUND;
 
-    /** @var  string real existing model attribute that contain image name */
+    /** @var string real existing model attribute that contain image name */
     public $modelAttribute;
+
+    /** @var string specify model attribute where file path will be stored.
+     * It need when $path attribute configured as callable function.
+     * If $path == callable and this attribute empty, path will be stored as prefix in $modelAttribute */
+    public $modelAttributeFilePath = null;
 
     /** @var string virtual attribute that will be placed in owner model object */
     public $relationAttribute = 'image';
@@ -57,6 +64,7 @@ class CoverBehavior extends Behavior
     public $fileNameGenerator;
 
     private $_relationAttributeValue;
+    private $_fileName;
 
     /** @inheritdoc */
     public function init()
@@ -66,11 +74,11 @@ class CoverBehavior extends Behavior
         if (empty($this->path)) {
             $this->path = Yii::getAlias('@frontend/web/uploads');
         }
-        if(empty($this->fileNameGenerator)) {
+        if (empty($this->fileNameGenerator)) {
             $this->fileNameGenerator = function () {
                 return uniqid();
             };
-        } elseif(!is_callable($this->fileNameGenerator)) {
+        } elseif (!is_callable($this->fileNameGenerator)) {
             throw new InvalidParamException('$fileNameGenerator should be callback function');
         }
         if (!empty($this->thumbnails)) {
@@ -159,7 +167,7 @@ class CoverBehavior extends Behavior
         return [
             ActiveRecord::EVENT_BEFORE_VALIDATE => 'loadImage',
             ActiveRecord::EVENT_BEFORE_INSERT => 'saveImage',
-            ActiveRecord::EVENT_BEFORE_UPDATE => 'saveImage',
+            ActiveRecord::EVENT_BEFORE_UPDATE => 'updatePathAndSaveImage',
             ActiveRecord::EVENT_AFTER_DELETE => 'deleteImage',
         ];
     }
@@ -184,14 +192,44 @@ class CoverBehavior extends Behavior
             $this->addWatermark($owner->$table_attribute);
             $this->generateThumbnail($owner->$table_attribute);
 
-            if($isSaved) {
+            if ($isSaved) {
                 unlink($this->_relationAttributeValue);
-                unlink($owner->$table_attribute);
             } else {
                 throw new Exception($this->_relationAttributeValue->name . ' not saved.');
             }
         }
         return true;
+    }
+
+    public function updatePathAndSaveImage()
+    {
+        if ($this->_relationAttributeValue instanceof UploadedFile) {
+            $extension = $this->_relationAttributeValue->extension;
+        } else {
+            $extension = substr($this->owner->{$this->modelAttribute},
+                strrpos($this->owner->{$this->modelAttribute}, '.', -1));
+        }
+
+        $actualFullFileName = $this->filePath . $this->fileName . $extension;
+
+        if (is_callable($this->path) && $actualFullFileName !== $this->fullFileName) {
+            if ($this->modelAttributeFilePath) {
+                $oldFilePath = $this->owner->{$this->modelAttributeFilePath};
+            } else {
+                $oldFilePath = preg_replace('/[a-zA-Z0-9\-_]*\.\w{3,4}$/i', '', $this->owner->{$this->modelAttribute});
+            }
+            FileHelper::createDirectory($this->filePath);
+
+            $isMoved = rename($this->fullFileName, $actualFullFileName);
+
+            if ($isMoved && self::isDirectoryEmpty($oldFilePath)) {
+                FileHelper::removeDirectory($oldFilePath);
+            };
+            if ($isMoved) {
+                $this->setFullFileName($this->filePath, $this->fileName . $extension);
+            }
+        }
+        return $this->saveImage();
     }
 
     public function deleteImage()
@@ -208,7 +246,8 @@ class CoverBehavior extends Behavior
      * Unlink all thumbnails of specified file
      * @param $originalFileName String Original file name
      */
-    protected function deleteThumbnails($originalFileName) {
+    protected function deleteThumbnails($originalFileName)
+    {
         foreach ($this->thumbnails as $thumbnail) {
             $file_path = $this->filePath . $thumbnail['prefix'] . $originalFileName;
             if (file_exists($file_path)) {
@@ -255,9 +294,31 @@ class CoverBehavior extends Behavior
         return $this->getParamValue($this->path);
     }
 
+    protected function getFullFileName()
+    {
+        if (empty($this->modelAttributeFilePath)) {
+            return $this->owner->{$this->modelAttribute};
+        } else {
+            return $this->owner->{$this->modelAttributeFilePath} . $this->owner->{$this->modelAttribute};
+        }
+    }
+
+    protected function setFullFileName($filePath, $fileName)
+    {
+        if ($this->modelAttributeFilePath) {
+            $this->owner->{$this->modelAttributeFilePath} = $filePath;
+            $this->owner->{$this->modelAttribute} = $fileName;
+        } else {
+            $this->owner->{$this->modelAttribute} = $filePath . $fileName;
+        }
+    }
+
     protected function getFileName()
     {
-        return $this->getParamValue($this->fileNameGenerator);
+        if (empty($this->_fileName)) {
+            $this->_fileName = $this->getParamValue($this->fileNameGenerator);
+        }
+        return $this->_fileName;
     }
 
     /**
@@ -265,7 +326,7 @@ class CoverBehavior extends Behavior
      * @return string generated value
      * @throws InvalidConfigException if callback function didn't return String
      */
-    private function getParamValue($paramValue)
+    protected function getParamValue($paramValue)
     {
         if (is_callable($paramValue)) {
             $result = call_user_func($paramValue, $this->owner);
@@ -277,5 +338,17 @@ class CoverBehavior extends Behavior
             return $result;
         }
         return $paramValue;
+    }
+
+    private static function isDirectoryEmpty($dir)
+    {
+        if (!is_readable($dir)) return null;
+        $handle = opendir($dir);
+        while (false !== ($entry = readdir($handle))) {
+            if ($entry != "." && $entry != "..") {
+                return false;
+            }
+        }
+        return true;
     }
 }
