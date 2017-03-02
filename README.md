@@ -83,7 +83,7 @@ public function behaviors()
                 },
                 'modelAttributeFilePath' => 'cover_path',
                 'fileNameGenerator' => function ($model) {
-                    return $model->id . '-' . Inflector::slug($model->name);
+                    return Inflector::slug($model->name);
                 },
             ],
     }
