@@ -27,7 +27,8 @@ use yii\web\UploadedFile;
  *
  * @property string $fileName generated filename
  * @property string $modelFullFileName
- * @property string $filePath
+ * @property string $filePath newly generated path for file
+ * @property string $modelFilePath file path stored in model attribute
  * @property string $fileExtension
  */
 class CoverBehavior extends Behavior
@@ -208,9 +209,7 @@ class CoverBehavior extends Behavior
             return $this->saveImage();
         }
 
-        $old = $this->modelFullFileName;
-        $newFullFileName = $this->filePath . $this->fileName . '.' . $this->fileExtension;
-        if (is_callable($this->path) && $old !== $newFullFileName) {
+        if (is_callable($this->path) && $this->modelFilePath !== $this->filePath) {
             if ($this->modelAttributeFilePath) {
                 $oldFilePath = $this->owner->{$this->modelAttributeFilePath};
             } else {
@@ -218,7 +217,9 @@ class CoverBehavior extends Behavior
             }
             $isMoved = FileHelper::createDirectory($this->filePath);
 
-            if ($isMoved = $isMoved && rename($old, $newFullFileName)) {
+            if ($isMoved = $isMoved && rename($this->modelFullFileName,
+                    $this->filePath . $this->fileName . '.' . $this->fileExtension)
+            ) {
                 $this->setModelFullFileName($this->filePath, $this->fileName . '.' . $this->fileExtension);
             }
             if (self::isDirectoryEmpty($oldFilePath)) {
@@ -229,7 +230,7 @@ class CoverBehavior extends Behavior
         return true;
     }
 
-    public function deleteImage() // TODO check
+    public function deleteImage()
     {
         if (!empty($this->modelAttributeFilePath)) {
             $file_name = $this->owner->{$this->modelAttribute};
@@ -306,6 +307,16 @@ class CoverBehavior extends Behavior
             $this->owner->{$this->modelAttribute} = $fileName;
         } else {
             $this->owner->{$this->modelAttribute} = $filePath . $fileName;
+        }
+    }
+
+    protected function getModelFilePath()
+    {
+        if ($this->modelAttributeFilePath) {
+            return $this->owner->{$this->modelAttributeFilePath};
+        } else {
+            $modelFile = $this->owner->{$this->modelAttribute};
+            return substr($modelFile, 0, 1 + strrpos($modelFile, '/', -1));
         }
     }
 
