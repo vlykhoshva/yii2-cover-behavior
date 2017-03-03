@@ -21,7 +21,7 @@ or add
 to the require section of your composer.json.
 
 
-Usage
+Basic Usage
 -----
 
 This extension provides support for ActiveRecord image uploading.
@@ -59,6 +59,35 @@ class Article extends ActiveRecord
 
 Virtual property declared via `relationReferenceAttribute` serves not only for saving. It also contains existing references
 for the uploaded image
+
+Advanced usage
+-------------
+
+Behavior can generate **path** (`'path'`) or **image name** (`'fileNameGenerator'`) automatically by writing generation rule using [callback function](http://php.net/manual/en/language.types.callable.php#example-71). Or you can set static **path** or **image name** specifying String values.
+Callback function get ActiveRecord model object as argument.
+
+You can specify **image path** (`'modelAttributeFilePath'`) model attribute to save generated path in Data Base. It use only **path** configured as callback function. If this option not set and **path** is callback, image path will be saved to `'modelAttribute'` as *image path* + *image name* string.
+
+```php
+public function behaviors()
+    {
+        'cover' => [
+                'class' => CoverBehavior::className(),
+                'modelAttribute' => 'cover_name',
+                
+                'relationAttribute' => 'cover',
+                // not required options
+                'path' => function ($model) {
+                    return 'web/uploads/' . Inflector::slug($model->name) . '/'; 
+                    // generated path should have forward slash at the end;
+                },
+                'modelAttributeFilePath' => 'cover_path',
+                'fileNameGenerator' => function ($model) {
+                    return Inflector::slug($model->name);
+                },
+            ],
+    }
+```
 
 Thumbnails
 ----------
