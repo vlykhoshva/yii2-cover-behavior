@@ -204,11 +204,13 @@ class CoverBehavior extends Behavior
 
     public function updatePathAndSaveImage()
     {
-        if (!empty($this->_relationAttributeValue) && $this->_relationAttributeValue instanceof UploadedFile) {
+        if (empty($this->_relationAttributeValue)) {
+            return true;
+        }
+        if ($this->_relationAttributeValue instanceof UploadedFile) {
             $this->deleteImage();
             return $this->saveImage();
         }
-
         if (is_callable($this->path) && $this->modelFilePath !== $this->filePath) {
             if ($this->modelAttributeFilePath) {
                 $oldFilePath = $this->owner->{$this->modelAttributeFilePath};
