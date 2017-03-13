@@ -234,26 +234,30 @@ class CoverBehavior extends Behavior
 
     public function deleteImage()
     {
+        $file = $this->modelFilePath . $this->modelFullFileName;
+        if (!is_callable($this->path)) {
+            $file = $this->path . $file;
+        }
+        if (file_exists($file)) {
+            unlink($file);
+        }
         if (!empty($this->modelAttributeFilePath)) {
-            $file_name = $this->owner->{$this->modelAttribute};
+            $this->deleteThumbnails($this->owner->{$this->modelAttribute}, $this->modelFilePath);
         } elseif (!empty($this->owner->{$this->modelAttribute})) {
             preg_match($this->fileNameRegexp, $this->owner->{$this->modelAttribute}, $file_name);
-            $file_name = $file_name[0];
-        }
-        if (file_exists($this->modelFullFileName)) {
-            unlink($this->modelFullFileName);
-            $this->deleteThumbnails($file_name);
+            $this->deleteThumbnails($file_name[0]);
         }
     }
 
     /**
      * Unlink all thumbnails of specified file
      * @param $originalFileName String Original file name
+     * @param $filePath String path to thumbnails
      */
-    protected function deleteThumbnails($originalFileName)
+    protected function deleteThumbnails($originalFileName, $filePath = null)
     {
         foreach ($this->thumbnails as $thumbnail) {
-            $file_path = $this->filePath . $thumbnail['prefix'] . $originalFileName;
+            $file_path = !empty($filePath) ? $filePath : $this->filePath . $thumbnail['prefix'] . $originalFileName;
             if (file_exists($file_path)) {
                 unlink($file_path);
             }
@@ -307,8 +311,10 @@ class CoverBehavior extends Behavior
         if ($this->modelAttributeFilePath) {
             $this->owner->{$this->modelAttributeFilePath} = $filePath;
             $this->owner->{$this->modelAttribute} = $fileName;
-        } else {
+        } elseif (is_callable($this->path)) {
             $this->owner->{$this->modelAttribute} = $filePath . $fileName;
+        } else {
+            $this->owner->{$this->modelAttribute} = $fileName;
         }
     }
 
@@ -316,9 +322,11 @@ class CoverBehavior extends Behavior
     {
         if ($this->modelAttributeFilePath) {
             return $this->owner->{$this->modelAttributeFilePath};
-        } else {
+        } elseif (is_callable($this->path)) {
             $modelFile = $this->owner->{$this->modelAttribute};
             return substr($modelFile, 0, 1 + strrpos($modelFile, '/', -1));
+        } else {
+            return null;
         }
     }
 
