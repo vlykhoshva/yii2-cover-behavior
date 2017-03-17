@@ -238,7 +238,7 @@ class CoverBehavior extends Behavior
         if (!is_callable($this->path)) {
             $file = $this->path . $file;
         }
-        if (file_exists($file)) {
+        if (file_exists($file) && !is_dir($file)) {
             unlink($file);
         }
         if (!empty($this->modelAttributeFilePath)) {
