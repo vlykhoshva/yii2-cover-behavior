@@ -82,8 +82,12 @@ class CoverBehavior extends Behavior
             $this->path = Yii::getAlias('@frontend/web/uploads');
         }
         if (empty($this->fileNameGenerator)) {
-            $this->fileNameGenerator = function () {
-                return uniqid();
+            /**
+             * @param \yii\web\UploadedFile $submitFile
+             * @return string
+             */
+            $this->fileNameGenerator = function ($submitFile) {
+                return $submitFile->baseName . '_' . uniqid();
             };
         } elseif (!is_callable($this->fileNameGenerator)) {
             throw new InvalidArgumentException('$fileNameGenerator should be callback function');
@@ -375,7 +379,7 @@ class CoverBehavior extends Behavior
     protected function getParamValue($paramValue)
     {
         if (is_callable($paramValue)) {
-            $result = call_user_func($paramValue, $this->owner);
+            $result = call_user_func($paramValue, $this->_submitFile, $this->owner);
             if (!is_string($result)) {
                 throw new InvalidConfigException('Callback function should return a String value. Result is '
                     . VarDumper::dumpAsString($result) . ' for '
