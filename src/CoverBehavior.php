@@ -30,6 +30,8 @@ use yii\web\UploadedFile;
  * @property string $filePath newly generated path for file
  * @property string $modelFilePath file path stored in model attribute
  * @property string $fileExtension
+ *
+ * @property \yii\base\Model $owner
  */
 class CoverBehavior extends Behavior
 {
