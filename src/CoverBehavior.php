@@ -70,7 +70,7 @@ class CoverBehavior extends Behavior
     /** @var callable Callback function to generate file name */
     public $fileNameGenerator;
 
-    private $_relationAttributeValue, $_fileName, $_filePath;
+    private $_submitFile, $_fileName, $_filePath;
     private $fileNameRegexp = '/[a-zA-Z0-9\-_]*\.\w{3,4}$/i';
 
     /** @inheritdoc */
@@ -118,6 +118,7 @@ class CoverBehavior extends Behavior
      * This method is overridden so that relation attribute can be accessed like property.
      *
      * @param string $name property name
+     *
      * @throws UnknownPropertyException if the property is not defined
      * @return mixed property value
      */
@@ -127,10 +128,10 @@ class CoverBehavior extends Behavior
             return parent::__get($name);
         } catch (UnknownPropertyException $e) {
             if ($name === $this->relationAttribute) {
-                if (is_null($this->_relationAttributeValue)) {
-                    $this->_relationAttributeValue = $this->owner->{$this->modelAttribute};
+                if (is_null($this->_submitFile)) {
+                    $this->_submitFile = $this->owner->{$this->modelAttribute};
                 }
-                return $this->_relationAttributeValue;
+                return $this->_submitFile;
             }
             throw $e;
         }
@@ -149,7 +150,7 @@ class CoverBehavior extends Behavior
             parent::__set($name, $value);
         } catch (UnknownPropertyException $e) {
             if ($name === $this->relationAttribute) {
-                $this->_relationAttributeValue = $value;
+                $this->_submitFile = $value;
             } else {
                 throw $e;
             }
@@ -181,10 +182,10 @@ class CoverBehavior extends Behavior
 
     public function loadImage()
     {
-        if($this->simpleRequest) {
-            $this->_relationAttributeValue = UploadedFile::getInstanceByName($this->relationAttribute);
+        if ($this->simpleRequest) {
+            $this->_submitFile = UploadedFile::getInstanceByName($this->relationAttribute);
         } else {
-            $this->_relationAttributeValue = UploadedFile::getInstance($this->owner, $this->relationAttribute);
+            $this->_submitFile = UploadedFile::getInstance($this->owner, $this->relationAttribute);
         }
         return true;
     }
@@ -193,17 +194,17 @@ class CoverBehavior extends Behavior
     {
         $owner = $this->owner;
         $table_attribute = $this->modelAttribute;
-        if ($this->_relationAttributeValue instanceof UploadedFile) {
+        if ($this->_submitFile instanceof UploadedFile) {
             $isSaved = FileHelper::createDirectory($this->filePath);
-            $isSaved = $isSaved && $this->_relationAttributeValue->saveAs(
+            $isSaved = $isSaved && $this->_submitFile->saveAs(
                     $this->filePath . $this->fileName . '.' . $this->fileExtension);
 
             if (!$isSaved) {
-                throw new Exception($this->_relationAttributeValue->name . ' not saved.');
+                throw new Exception($this->_submitFile->name . ' not saved.');
             }
 
             $this->setModelFullFileName($this->filePath, $this->fileName . '.' . $this->fileExtension);
-            $this->_relationAttributeValue = null;
+            $this->_submitFile = null;
 
             $this->addWatermark($owner->$table_attribute);
             $this->generateThumbnail($owner->$table_attribute);
@@ -213,10 +214,10 @@ class CoverBehavior extends Behavior
 
     public function updatePathAndSaveImage()
     {
-        if (empty($this->_relationAttributeValue)) {
+        if (empty($this->_submitFile)) {
             return true;
         }
-        if ($this->_relationAttributeValue instanceof UploadedFile) {
+        if ($this->_submitFile instanceof UploadedFile) {
             $this->deleteImage();
             return $this->saveImage();
         }
@@ -341,8 +342,8 @@ class CoverBehavior extends Behavior
 
     protected function getFileExtension()
     {
-        if ($this->_relationAttributeValue instanceof UploadedFile) {
-            return $this->_relationAttributeValue->extension;
+        if ($this->_submitFile instanceof UploadedFile) {
+            return $this->_submitFile->extension;
         } elseif (!empty($this->owner->{$this->modelAttribute})) {
             $modelFile = $this->owner->{$this->modelAttribute};
             return substr($modelFile, 1 + strrpos($modelFile, '.', -1));
