@@ -50,6 +50,9 @@ class CoverBehavior extends Behavior
     /** @var array options to generate thumbnails for incoming image */
     public $thumbnails = array();
 
+    /** @var boolean is need to get request attributes with simple names like `bar` instead of `Foo[bar]`*/
+    public $simpleRequest = false;
+    
     /**
      * @var string|callable path to store file. Default value use `'@frontend/web/uploads'`.
      * Callback function should has next template:
@@ -176,7 +179,11 @@ class CoverBehavior extends Behavior
 
     public function loadImage()
     {
-        $this->_relationAttributeValue = UploadedFile::getInstance($this->owner, $this->relationAttribute);
+        if($this->simpleRequest) {
+            $this->_relationAttributeValue = UploadedFile::getInstanceByName($this->relationAttribute);
+        } else {
+            $this->_relationAttributeValue = UploadedFile::getInstance($this->owner, $this->relationAttribute);
+        }
         return true;
     }
 
