@@ -12,11 +12,11 @@ use Imagine\Gd\Imagine;
 use Imagine\Image\Box;
 use Imagine\Image\ManipulatorInterface;
 use Imagine\Image\Point;
+use InvalidArgumentException;
 use Yii;
 use yii\base\Behavior;
 use yii\base\Exception;
 use yii\base\InvalidConfigException;
-use yii\base\InvalidParamException;
 use yii\base\UnknownPropertyException;
 use yii\db\ActiveRecord;
 use yii\helpers\FileHelper;
@@ -30,6 +30,8 @@ use yii\web\UploadedFile;
  * @property string $filePath newly generated path for file
  * @property string $modelFilePath file path stored in model attribute
  * @property string $fileExtension
+ *
+ * @property \yii\base\Model $owner
  */
 class CoverBehavior extends Behavior
 {
@@ -50,6 +52,9 @@ class CoverBehavior extends Behavior
     /** @var array options to generate thumbnails for incoming image */
     public $thumbnails = array();
 
+    /** @var boolean is need to get request attributes with simple names like `bar` instead of `Foo[bar]`*/
+    public $simpleRequest = false;
+    
     /**
      * @var string|callable path to store file. Default value use `'@frontend/web/uploads'`.
      * Callback function should has next template:
@@ -65,7 +70,7 @@ class CoverBehavior extends Behavior
     /** @var callable Callback function to generate file name */
     public $fileNameGenerator;
 
-    private $_relationAttributeValue, $_fileName, $_filePath;
+    private $_submitFile, $_fileName, $_filePath;
     private $fileNameRegexp = '/[a-zA-Z0-9\-_]*\.\w{3,4}$/i';
 
     /** @inheritdoc */
@@ -77,32 +82,36 @@ class CoverBehavior extends Behavior
             $this->path = Yii::getAlias('@frontend/web/uploads');
         }
         if (empty($this->fileNameGenerator)) {
-            $this->fileNameGenerator = function () {
-                return uniqid();
+            /**
+             * @param \yii\web\UploadedFile $submitFile
+             * @return string
+             */
+            $this->fileNameGenerator = function ($submitFile) {
+                return $submitFile->baseName . '_' . uniqid();
             };
         } elseif (!is_callable($this->fileNameGenerator)) {
-            throw new InvalidParamException('$fileNameGenerator should be callback function');
+            throw new InvalidArgumentException('$fileNameGenerator should be callback function');
         }
         if (!empty($this->thumbnails)) {
             foreach ($this->thumbnails as &$thumbnail) {
                 if (empty($thumbnail['prefix'])) {
-                    throw new InvalidParamException('$thumbnails[\'prefix\'] can not be empty');
+                    throw new InvalidArgumentException('$thumbnails[\'prefix\'] can not be empty');
                 }
                 if (empty($thumbnail['width'])) {
-                    throw new InvalidParamException('$thumbnails[\'width\'] have to be not empty');
+                    throw new InvalidArgumentException('$thumbnails[\'width\'] have to be not empty');
                 }
                 if (empty($thumbnail['height'])) {
                     $thumbnail['height'] = $thumbnail['width'];
                 }
                 if (!is_numeric($thumbnail['width']) || !is_numeric($thumbnail['height'])) {
-                    throw new InvalidParamException('$thumbnails[\'width\'] and $thumbnails[\'height\'] have to be a number');
+                    throw new InvalidArgumentException('$thumbnails[\'width\'] and $thumbnails[\'height\'] have to be a number');
                 }
                 if (empty($thumbnail['mode'])) {
                     $thumbnail['mode'] = ManipulatorInterface::THUMBNAIL_INSET;
                 } elseif (!in_array($thumbnail['mode'],
                     [ManipulatorInterface::THUMBNAIL_INSET, ManipulatorInterface::THUMBNAIL_OUTBOUND])
                 ) {
-                    throw new InvalidParamException('Undefined mode in $thumbnail[\'mode\']');
+                    throw new InvalidArgumentException('Undefined mode in $thumbnail[\'mode\']');
                 }
             }
         }
@@ -113,6 +122,7 @@ class CoverBehavior extends Behavior
      * This method is overridden so that relation attribute can be accessed like property.
      *
      * @param string $name property name
+     *
      * @throws UnknownPropertyException if the property is not defined
      * @return mixed property value
      */
@@ -122,10 +132,10 @@ class CoverBehavior extends Behavior
             return parent::__get($name);
         } catch (UnknownPropertyException $e) {
             if ($name === $this->relationAttribute) {
-                if (is_null($this->_relationAttributeValue)) {
-                    $this->_relationAttributeValue = $this->owner->{$this->modelAttribute};
+                if (is_null($this->_submitFile)) {
+                    $this->_submitFile = $this->owner->{$this->modelAttribute};
                 }
-                return $this->_relationAttributeValue;
+                return $this->_submitFile;
             }
             throw $e;
         }
@@ -144,7 +154,7 @@ class CoverBehavior extends Behavior
             parent::__set($name, $value);
         } catch (UnknownPropertyException $e) {
             if ($name === $this->relationAttribute) {
-                $this->_relationAttributeValue = $value;
+                $this->_submitFile = $value;
             } else {
                 throw $e;
             }
@@ -176,7 +186,11 @@ class CoverBehavior extends Behavior
 
     public function loadImage()
     {
-        $this->_relationAttributeValue = UploadedFile::getInstance($this->owner, $this->relationAttribute);
+        if ($this->simpleRequest) {
+            $this->_submitFile = UploadedFile::getInstanceByName($this->relationAttribute);
+        } else {
+            $this->_submitFile = UploadedFile::getInstance($this->owner, $this->relationAttribute);
+        }
         return true;
     }
 
@@ -184,17 +198,17 @@ class CoverBehavior extends Behavior
     {
         $owner = $this->owner;
         $table_attribute = $this->modelAttribute;
-        if ($this->_relationAttributeValue instanceof UploadedFile) {
+        if ($this->_submitFile instanceof UploadedFile) {
             $isSaved = FileHelper::createDirectory($this->filePath);
-            $isSaved = $isSaved && $this->_relationAttributeValue->saveAs(
+            $isSaved = $isSaved && $this->_submitFile->saveAs(
                     $this->filePath . $this->fileName . '.' . $this->fileExtension);
 
             if (!$isSaved) {
-                throw new Exception($this->_relationAttributeValue->name . ' not saved.');
+                throw new Exception($this->_submitFile->name . ' not saved.');
             }
 
             $this->setModelFullFileName($this->filePath, $this->fileName . '.' . $this->fileExtension);
-            $this->_relationAttributeValue = null;
+            $this->_submitFile = null;
 
             $this->addWatermark($owner->$table_attribute);
             $this->generateThumbnail($owner->$table_attribute);
@@ -204,10 +218,10 @@ class CoverBehavior extends Behavior
 
     public function updatePathAndSaveImage()
     {
-        if (empty($this->_relationAttributeValue)) {
+        if (empty($this->_submitFile)) {
             return true;
         }
-        if ($this->_relationAttributeValue instanceof UploadedFile) {
+        if ($this->_submitFile instanceof UploadedFile) {
             $this->deleteImage();
             return $this->saveImage();
         }
@@ -332,8 +346,8 @@ class CoverBehavior extends Behavior
 
     protected function getFileExtension()
     {
-        if ($this->_relationAttributeValue instanceof UploadedFile) {
-            return $this->_relationAttributeValue->extension;
+        if ($this->_submitFile instanceof UploadedFile) {
+            return $this->_submitFile->extension;
         } elseif (!empty($this->owner->{$this->modelAttribute})) {
             $modelFile = $this->owner->{$this->modelAttribute};
             return substr($modelFile, 1 + strrpos($modelFile, '.', -1));
@@ -365,7 +379,7 @@ class CoverBehavior extends Behavior
     protected function getParamValue($paramValue)
     {
         if (is_callable($paramValue)) {
-            $result = call_user_func($paramValue, $this->owner);
+            $result = call_user_func($paramValue, $this->_submitFile, $this->owner);
             if (!is_string($result)) {
                 throw new InvalidConfigException('Callback function should return a String value. Result is '
                     . VarDumper::dumpAsString($result) . ' for '
