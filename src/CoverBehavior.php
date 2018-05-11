@@ -12,11 +12,11 @@ use Imagine\Gd\Imagine;
 use Imagine\Image\Box;
 use Imagine\Image\ManipulatorInterface;
 use Imagine\Image\Point;
+use InvalidArgumentException;
 use Yii;
 use yii\base\Behavior;
 use yii\base\Exception;
 use yii\base\InvalidConfigException;
-use yii\base\InvalidParamException;
 use yii\base\UnknownPropertyException;
 use yii\db\ActiveRecord;
 use yii\helpers\FileHelper;
@@ -84,28 +84,28 @@ class CoverBehavior extends Behavior
                 return uniqid();
             };
         } elseif (!is_callable($this->fileNameGenerator)) {
-            throw new InvalidParamException('$fileNameGenerator should be callback function');
+            throw new InvalidArgumentException('$fileNameGenerator should be callback function');
         }
         if (!empty($this->thumbnails)) {
             foreach ($this->thumbnails as &$thumbnail) {
                 if (empty($thumbnail['prefix'])) {
-                    throw new InvalidParamException('$thumbnails[\'prefix\'] can not be empty');
+                    throw new InvalidArgumentException('$thumbnails[\'prefix\'] can not be empty');
                 }
                 if (empty($thumbnail['width'])) {
-                    throw new InvalidParamException('$thumbnails[\'width\'] have to be not empty');
+                    throw new InvalidArgumentException('$thumbnails[\'width\'] have to be not empty');
                 }
                 if (empty($thumbnail['height'])) {
                     $thumbnail['height'] = $thumbnail['width'];
                 }
                 if (!is_numeric($thumbnail['width']) || !is_numeric($thumbnail['height'])) {
-                    throw new InvalidParamException('$thumbnails[\'width\'] and $thumbnails[\'height\'] have to be a number');
+                    throw new InvalidArgumentException('$thumbnails[\'width\'] and $thumbnails[\'height\'] have to be a number');
                 }
                 if (empty($thumbnail['mode'])) {
                     $thumbnail['mode'] = ManipulatorInterface::THUMBNAIL_INSET;
                 } elseif (!in_array($thumbnail['mode'],
                     [ManipulatorInterface::THUMBNAIL_INSET, ManipulatorInterface::THUMBNAIL_OUTBOUND])
                 ) {
-                    throw new InvalidParamException('Undefined mode in $thumbnail[\'mode\']');
+                    throw new InvalidArgumentException('Undefined mode in $thumbnail[\'mode\']');
                 }
             }
         }
